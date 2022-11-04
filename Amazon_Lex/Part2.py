@@ -8,44 +8,43 @@ import time
 def validate(slots):
 
     valid_cities = ['mumbai','delhi','banglore','hyderabad']
-    
+
     if not slots['Location']:
         print("Inside Empty Location")
         return {
         'isValid': False,
         'violatedSlot': 'Location'
         }        
-        
+
     if slots['Location']['value']['originalValue'].lower() not in  valid_cities:
         
         print("Not Valide location")
-        
+
         return {
-        'isValid': False,
-        'violatedSlot': 'Location',
-        'message': 'We currently  support only {} as a valid destination.?'.format(", ".join(valid_cities))
+            'isValid': False,
+            'violatedSlot': 'Location',
+            'message': f'We currently  support only {", ".join(valid_cities)} as a valid destination.?',
         }
-        
+
+
     if not slots['CheckInDate']:
-        
+
         return {
         'isValid': False,
         'violatedSlot': 'CheckInDate',
     }
-        
+
     if not slots['Nights']:
         return {
         'isValid': False,
         'violatedSlot': 'Nights'
     }
-        
-    if not slots['RoomType']:
-        return {
-        'isValid': False,
-        'violatedSlot': 'RoomType'
-    }
 
-    return {'isValid': True}
+    return (
+        {'isValid': True}
+        if slots['RoomType']
+        else {'isValid': False, 'violatedSlot': 'RoomType'}
+    )
     
 def lambda_handler(event, context):
     
@@ -56,87 +55,61 @@ def lambda_handler(event, context):
     print(slots)
     print(intent)
     validation_result = validate(event['sessionState']['intent']['slots'])
-    
+
     if event['invocationSource'] == 'DialogCodeHook':
         if not validation_result['isValid']:
             
-            if 'message' in validation_result:
-            
-                response = {
-                "sessionState": {
-                    "dialogAction": {
-                        'slotToElicit':validation_result['violatedSlot'],
-                        "type": "ElicitSlot"
+            return (
+                {
+                    "sessionState": {
+                        "dialogAction": {
+                            'slotToElicit': validation_result['violatedSlot'],
+                            "type": "ElicitSlot",
+                        },
+                        "intent": {'name': intent, 'slots': slots},
                     },
-                    "intent": {
-                        'name':intent,
-                        'slots': slots
-                        
+                    "messages": [
+                        {
+                            "contentType": "PlainText",
+                            "content": validation_result['message'],
                         }
-                },
-                "messages": [
-                    {
-                        "contentType": "PlainText",
-                        "content": validation_result['message']
-                    }
-                ]
-               } 
-            else:
-                response = {
-                "sessionState": {
-                    "dialogAction": {
-                        'slotToElicit':validation_result['violatedSlot'],
-                        "type": "ElicitSlot"
-                    },
-                    "intent": {
-                        'name':intent,
-                        'slots': slots
-                        
-                        }
+                    ],
                 }
-               } 
-    
-            return response
-           
-        else:
-            response = {
-            "sessionState": {
-                "dialogAction": {
-                    "type": "Delegate"
-                },
-                "intent": {
-                    'name':intent,
-                    'slots': slots
-                    
+                if 'message' in validation_result
+                else {
+                    "sessionState": {
+                        "dialogAction": {
+                            'slotToElicit': validation_result['violatedSlot'],
+                            "type": "ElicitSlot",
+                        },
+                        "intent": {'name': intent, 'slots': slots},
                     }
-        
+                }
+            )
+
+        else:
+            return {
+                "sessionState": {
+                    "dialogAction": {"type": "Delegate"},
+                    "intent": {'name': intent, 'slots': slots},
+                }
             }
-        }
-            return response
-    
+
     if event['invocationSource'] == 'FulfillmentCodeHook':
         
-        # Add order in Database
-        
-        response = {
-        "sessionState": {
-            "dialogAction": {
-                "type": "Close"
+        return {
+            "sessionState": {
+                "dialogAction": {"type": "Close"},
+                "intent": {
+                    'name': intent,
+                    'slots': slots,
+                    'state': 'Fulfilled',
+                },
             },
-            "intent": {
-                'name':intent,
-                'slots': slots,
-                'state':'Fulfilled'
-                
+            "messages": [
+                {
+                    "contentType": "PlainText",
+                    "content": "Thanks, I have placed your reservation",
                 }
-    
-        },
-        "messages": [
-            {
-                "contentType": "PlainText",
-                "content": "Thanks, I have placed your reservation"
-            }
-        ]
-    }
-            
-        return response
+            ],
+        }
